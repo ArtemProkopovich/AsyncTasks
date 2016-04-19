@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -17,8 +21,8 @@ namespace Task
         /// <returns>The sequence of downloaded url content</returns>
         public static IEnumerable<string> GetUrlContent(this IEnumerable<Uri> uris)
         {
-            // TODO : Implement GetUrlContent
-            throw new NotImplementedException();
+            using (WebClient client = new WebClient())
+                return uris.Select(uri => client.DownloadString(uri)).ToList();
         }
 
         /// <summary>
@@ -33,8 +37,34 @@ namespace Task
         /// <returns>The sequence of downloaded url content</returns>
         public static IEnumerable<string> GetUrlContentAsync(this IEnumerable<Uri> uris, int maxConcurrentStreams)
         {
-            // TODO : Implement GetUrlContentAsync
-            throw new NotImplementedException();
+            using (HttpClient client = new HttpClient())
+            {
+                List<Uri> uriList = uris.ToList();
+                List<string> result = new List<string>();
+                for (int j = 0; j < uriList.Count; j++)
+                    result.Add(null);
+                int[] tasksNums = new int[Math.Min(uriList.Count, maxConcurrentStreams)];
+                Task<string>[] tasks = new Task<string>[Math.Min(uriList.Count, maxConcurrentStreams)];
+                int i = 0;
+                for (; i < maxConcurrentStreams && i < uriList.Count; i++)
+                {
+                    tasks[i] = client.GetStringAsync(uriList[i]);
+                    tasksNums[i] = i;
+                }
+
+                while (i < uriList.Count)
+                {
+                    int num = System.Threading.Tasks.Task.WaitAny(tasks);
+                    result[tasksNums[num]] =tasks[num].Result;
+                    tasks[num] = client.GetStringAsync(uriList[i]);
+                    tasksNums[num] = i;
+                    i++;
+                }
+                System.Threading.Tasks.Task.WaitAll(tasks);
+                for (int j = 0; j < tasks.Length; j++)
+                    result[tasksNums[j]] = tasks[j].Result;
+                return result;
+            }   
         }
 
         /// <summary>
@@ -45,10 +75,40 @@ namespace Task
         /// </summary>
         /// <param name="resource">Uri of resource</param>
         /// <returns>MD5 hash</returns>
-        public static Task<string> GetMD5Async(this Uri resource)
+        public static async Task<string> GetMD5Async(this Uri resource)
         {
-            // TODO : Implement GetMD5Async
-            throw new NotImplementedException();
+            Stream stream;
+            switch (resource.Scheme)
+            {
+                case "https":
+                case "http":
+                    using (HttpClient client = new HttpClient())
+                    {                      
+                        stream = await client.GetStreamAsync(resource);
+                    }
+                    break;
+                case "ftp":
+                    FtpWebRequest request = (FtpWebRequest)WebRequest.Create(resource);
+                    request.Method = WebRequestMethods.Ftp.DownloadFile;
+                    FtpWebResponse response = (FtpWebResponse) await request.GetResponseAsync();
+
+                    Stream responseStream = response.GetResponseStream();
+                    stream = responseStream;
+                    break;
+                default:
+                    stream = new FileStream(resource.LocalPath, FileMode.Open, FileAccess.Read);
+                    break;
+            }
+            MD5 md5 = new MD5CryptoServiceProvider();
+            byte[] retVal = md5.ComputeHash(stream);
+            stream.Close();
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < retVal.Length; i++)
+            {
+                sb.Append(retVal[i].ToString("x2"));
+            }
+            return sb.ToString();
         }
     }
 }

@@ -54,8 +54,8 @@ namespace Tasks.Tests
                     GetTestUris().GetUrlContentAsync(expectedConcurrentStreams).ToArray();
 
                     Assert.IsTrue(UnitTestsTraceListener.MaxConcurrentStreamsCount <= expectedConcurrentStreams,
-                                  string.Format("Max concurrent streams should be less then {expectedConcurrentStreams}," +
-                                                " actual : {UnitTestsTraceListener.MaxConcurrentStreamsCount}"));
+                                  string.Format($"Max concurrent streams should be less then {expectedConcurrentStreams}," +
+                                                $" actual : {UnitTestsTraceListener.MaxConcurrentStreamsCount}"));
 
                     Assert.IsTrue(UnitTestsTraceListener.MaxConcurrentStreamsCount > 1,
                                    string.Format($"Max concurrent streams should be more then 1, " +
